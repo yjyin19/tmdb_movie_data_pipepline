@@ -1,0 +1,5 @@
+boto3==1.28.68
+pandas==2.1.1
+psycopg2==2.9.9
+ratelimit==2.2.1
+requests==2.31.0
