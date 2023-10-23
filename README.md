@@ -6,7 +6,7 @@
 - [Project Structure](#project-structure)
 - [Usage](#usage)
 - [Prerequisites](#prerequisites)
-- [Future Enhancements and Roadmap](#future-enhancements-and-roadmap)
+- [Future Plans](#future-plans)
 
 ---
 
