@@ -20,7 +20,7 @@ s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
 def send_request(url, params={'api_key': api_key}):
     '''Sends a request to the TMDB API to get movies released within the specified dates and page number.'''
 
-    response = requests.get(url, params=params)
+    response = session.get(url, params=params)
     if response.status_code == 200:
         return response.json()
     else:
@@ -111,7 +111,6 @@ def main(output_folder):
         s3_object_key = os.path.join(s3_data_folder + s3_sub_folder, f"TMDB_movie_data_raw_{movie_id}.json")
         s3.upload_file(movie_detail_file, s3_bucket_name, s3_object_key)
 
-    # Log the completion of the program
     logging.info("Data fetching and saving completed.")
 
 
@@ -127,6 +126,9 @@ if __name__ == '__main__':
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     logging.basicConfig(filename=os.path.join(log_folder, f"fetch_genre_data_{timestamp}.log"),
                          level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    
+    session = requests.Session()
+    session.params = {'api_key': api_key}
 
     # Initialize the S3 client
     s3 = boto3.client('s3')
