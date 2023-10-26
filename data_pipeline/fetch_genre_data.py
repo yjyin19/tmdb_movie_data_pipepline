@@ -1,9 +1,10 @@
 import os
+import requests
 import boto3
 import pandas as pd
 import logging
 import argparse
-from fetch_data import send_request, api_key, s3_bucket_name
+from fetch_data import api_key, s3_bucket_name
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -11,7 +12,11 @@ from datetime import datetime
 def fetch_genre_data():
     """Fetch movie genres from the TMDB API."""
     movie_genre_list_url = "https://api.themoviedb.org/3/genre/movie/list?language=en"
-    return send_request(movie_genre_list_url)
+    response = requests.get(movie_genre_list_url, params={'api_key': api_key})
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None
 
 
 def parse_genre_data(data):
