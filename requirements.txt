@@ -3,3 +3,4 @@ pandas==2.1.1
 psycopg2==2.9.9
 ratelimit==2.2.1
 requests==2.31.0
+python-dotenv==1.0.0

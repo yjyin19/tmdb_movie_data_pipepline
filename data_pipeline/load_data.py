@@ -1,8 +1,12 @@
-import psycopg2
-import json
 import os
+import json
+import logging
+import psycopg2
+from dotenv import load_dotenv
 from pathlib import Path
 from datetime import datetime
+from tkinter import Tk, filedialog
+
 
 # Define database connection parameters
 db_params = {
@@ -12,6 +16,15 @@ db_params = {
     "host": os.environ.get("DB_HOST"),
     "port": os.environ.get("DB_PORT")
 }
+
+
+def select_folder():
+    root = Tk()
+    root.withdraw()  # Hide the main window
+
+    # Use the file dialog to select a folder
+    folder_path = filedialog.askdirectory(title="Select a folder with data to add to the database.")
+    return Path(folder_path)
 
 
 def insert_movie_data(data, cur):
@@ -74,36 +87,45 @@ def insert_production_company_data(data, cur):
         cur.execute(insert_production_company_sql, (company["id"], company["name"], company["origin_country"]))
 
 
-# Directory containing JSON files
-json_files_dir = Path("TMDB_movie_data_raw\TMDB_movie_data_raw_2023-10-20")
+def main():
+    # Prompt the user to select a folder
+    json_files_dir = select_folder()  
 
+    if not json_files_dir:
+        logging.error("No folder selected. Exiting.")
+        return
 
+    if not os.listdir(json_files_dir):
+        logging.error("The selected directory is empty. Exiting.")
+        return
 
-try:
-    # Establish a connection to database
-    conn = psycopg2.connect(**db_params)
-    cur = conn.cursor()
+    try:
+        # Load environment variables
+        load_dotenv()
 
-    # Loop through JSON files in the local folder
-    for file_path in json_files_dir.glob("*.json"):
-        if str(file_path).endswith(".json"):
-            with file_path.open("r", encoding="utf-8") as json_file:
-                movie_data = json.load(json_file)
-                movie_id = movie_data["id"]
-                insert_movie_data(movie_data, cur)
-                insert_movie_genre_data(movie_data, movie_id, cur)
-                insert_production_company_data(movie_data, cur)
-                print(f"Inserted data from {file_path.name}")
+        with psycopg2.connect(**db_params) as conn, conn.cursor() as cur:
+            for file_path in json_files_dir.glob("*.json"):
+                if str(file_path).endswith(".json"):
+                    with file_path.open("r", encoding="utf-8") as json_file:
+                        movie_data = json.load(json_file)
+                        movie_id = movie_data["id"]
+                        insert_movie_data(movie_data, cur)
+                        insert_movie_genre_data(movie_data, movie_id, cur)
+                        insert_production_company_data(movie_data, cur)
+                        logging.info(f"Inserted data from {file_path.name}")
 
-    # Commit the changes to the database
-    conn.commit()
-    print("Data insertion completed.")
+        logging.info("Data insertion completed.")
 
-except psycopg2.Error as error:
-    print("Error:", error)
+    except psycopg2.Error as error:
+        logging.error("Error: %s", error)
 
-finally:
-    # Close the connection to database
-    if conn:
-        cur.close()
-        conn.close()
+if __name__ == "__main__":
+    # Configure logging
+    log_folder = "logs"
+    if not os.path.exists(log_folder):
+        os.mkdir(log_folder)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    logging.basicConfig(filename=os.path.join(log_folder, f"load_data_{timestamp}.log"), 
+                                              level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+    main()

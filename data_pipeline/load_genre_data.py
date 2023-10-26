@@ -1,7 +1,9 @@
 import psycopg2
 import pandas as pd
 import os
-from pathlib import Path
+import logging
+from datetime import datetime
+from tkinter import Tk, filedialog
 
 # Define database connection parameters
 db_params = {
@@ -13,33 +15,43 @@ db_params = {
 }
 
 
-
-# Path to the file containing genre information
-csv_file = Path("TMDB_movie_data_raw\TMDB_movie_data_movie_genre.csv")
-
-
-try:
-    # Establish a connection to database
-    conn = psycopg2.connect(**db_params)
-    cur = conn.cursor()
+def select_file():
+    root = Tk()
+    root.withdraw()
+    file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")], title="Select the CSV file with genre information")
+    return file_path
 
 
-    insert_genre_sql = "INSERT INTO genre (id, name) VALUES (%s, %s)"
+def load_genre_data(csv_file):
+    try:
+        with psycopg2.connect(**db_params) as conn, conn.cursor() as cur:
+            insert_genre_sql = "INSERT INTO genre (id, name) VALUES (%s, %s)"
+            df = pd.read_csv(csv_file)
 
-    df = pd.read_csv(csv_file)
+            for _, row in df.iterrows():
+                cur.execute(insert_genre_sql, (row['id'], row['name']))
 
-    for index, row in df.iterrows():
-        cur.execute(insert_genre_sql, (row['id'], row['name']))
+        logging.info("Data insertion completed.")
 
-    # Commit the changes to the database
-    conn.commit()
-    print("Data insertion completed.")
+    except psycopg2.Error as error:
+        logging.error("Error: %s", error)
 
-except psycopg2.Error as error:
-    print("Error:", error)
 
-finally:
-    # Close the connection to database
-    if conn:
-        cur.close()
-        conn.close()
+if __name__ == "__main__":
+    # Configure logging
+    log_folder = "logs"
+    if not os.path.exists(log_folder):
+        os.mkdir(log_folder)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    logging.basicConfig(filename=os.path.join(log_folder, f"load_genre_data_{timestamp}.log"), 
+                        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+    csv_file = select_file()
+
+    if not csv_file:
+        logging.warning("No CSV file selected. Exiting.")
+    else:
+        try:
+            load_genre_data(csv_file)
+        except psycopg2.Error as error:
+            logging.error("Database connection error: %s", error)

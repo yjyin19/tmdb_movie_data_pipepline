@@ -1,18 +1,19 @@
 import os
 import json
 import requests
+import boto3
+import logging
+import argparse
+from dotenv import load_dotenv
 from datetime import datetime
 from ratelimit import rate_limited
-import boto3
+
 
 # Get API key from environment variables
 api_key = os.environ.get("TMDB_API_KEY")
 
 # Get S3 bucket
 s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
-
-# Initialize the S3 client
-s3 = boto3.client('s3')
 
 
 @rate_limited(50, 1)  # 50 requests per second as TMDB documentation states such a limit
@@ -26,7 +27,6 @@ def send_request(url, params={'api_key': api_key}):
         return None
 
 
-
 def save_json_to_local(data, filename):
     '''Save the fetched data from API locally.'''
 
@@ -34,22 +34,24 @@ def save_json_to_local(data, filename):
         json.dump(data, json_file, ensure_ascii=False, indent=4)
 
 
-
-def main():
+def main(output_folder):
     '''This function fetches and saves data in 2 steps:
     1. Get the list of ids of movies that released on a certain date or during a date range. Default: get movies released today.
     2. Get the detail data of movies by using the list of ids from the previous step. Save the data of each movie in a seperate file locally and on AWS S3.
     '''
 
+    # Load environment variables
+    load_dotenv()
+
     if api_key is None:
-        print("API key not found. Please set it and try again.")
+        logging.info("API key not found. Please set it and try again.")
         return
     elif s3_bucket_name is None:
-        print("S3_BUCKET_NAME environment variable is not set. Please set it and try again.")
+        logging.info("S3_BUCKET_NAME environment variable is not set. Please set it and try again.")
         return
 
-    s3_data_folder = f"TMDB_movie_data_raw/"
-    local_data_folder = s3_data_folder.rstrip('/').split('/')[-1]
+    s3_data_folder = output_folder + "/"
+    local_data_folder = output_folder
     if not os.path.exists(local_data_folder):
         os.mkdir(local_data_folder)
     
@@ -83,13 +85,11 @@ def main():
         if not data.get("results"):
             break
 
-
         for item in data["results"]:
             movie_list.append(item["id"])
 
         if page_number == 500:
-            print("Fetched 500 pages of results to generate a list of movies. There might be more results but TMDB can only show 500 pages.")
-
+            logging.warning("Fetched 500 pages of results to generate a list of movies. There might be more results but TMDB can only show 500 pages.")
 
     # 2. Get the detail data of movies by using the list of ids
     if end_date_str == start_date_str:
@@ -111,6 +111,24 @@ def main():
         s3_object_key = os.path.join(s3_data_folder + s3_sub_folder, f"TMDB_movie_data_raw_{movie_id}.json")
         s3.upload_file(movie_detail_file, s3_bucket_name, s3_object_key)
 
+    # Log the completion of the program
+    logging.info("Data fetching and saving completed.")
+
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="Fetch and upload movie genre data to S3")
+    parser.add_argument("--output_folder", help="S3 folder to store data", default="TMDB_movie_data_raw")
+    args = parser.parse_args()
+
+    # Configure logging
+    log_folder = "logs"
+    if not os.path.exists(log_folder):
+        os.mkdir(log_folder)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    logging.basicConfig(filename=os.path.join(log_folder, f"fetch_genre_data_{timestamp}.log"),
+                         level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+    # Initialize the S3 client
+    s3 = boto3.client('s3')
+
+    main(args.output_folder)

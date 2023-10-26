@@ -31,7 +31,7 @@ The TMDB Movie data pipeline project is designed to fetch, transform, and load m
 
 To run the data pipeline, follow these steps:
 
-1. Set up your PostgreSQL database and configure the connection parameters using environment variables.
+1. Set up your PostgreSQL database and configure the connection parameters and API keys using environment variables with python-dotenv.
 
 2. Execute the scripts in the following order:
    - `create_tables.py` to create the database tables.
